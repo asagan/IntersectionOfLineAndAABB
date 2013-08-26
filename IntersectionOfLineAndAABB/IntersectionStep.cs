@@ -59,6 +59,7 @@ namespace IntersectionOfLineAndAABB
             // Example of how to add a property definition to the step.
             IPropertyDefinition Ox, Oy, Oz;
             IPropertyDefinition Rx, Ry, Rz;
+            IPropertyDefinition Rlength;
             IPropertyDefinition B0x, B0y, B0z;
             IPropertyDefinition B1x, B1y, B1z;
 
@@ -68,6 +69,7 @@ namespace IntersectionOfLineAndAABB
             Rx = schema.AddExpressionProperty("Rx", "1.0");
             Ry = schema.AddExpressionProperty("Ry", "1.0");
             Rz = schema.AddExpressionProperty("Rz", "1.0");
+            Rlength = schema.AddExpressionProperty("Rlength", "1.0");
 
             Ox.DisplayName = "Line Origin X";
             Oy.DisplayName = "Line Origin Y";
@@ -75,6 +77,7 @@ namespace IntersectionOfLineAndAABB
             Rx.DisplayName = "Line X Vector";
             Ry.DisplayName = "Line Y Vector";
             Rz.DisplayName = "Line Z Vector";
+            Rlength.DisplayName = "Length of the line";
 
             Ox.Description = "The X coordinate of the beginning of the line";
             Oy.Description = "The Y coordinate of the beginning of the line";
@@ -82,6 +85,7 @@ namespace IntersectionOfLineAndAABB
             Rx.Description = "The X component of the vector describing the lines direction";
             Ry.Description = "The Y component of the vector describing the lines direction";
             Rz.Description = "The Z component of the vector describing the lines direction";
+            Rlength.Description = "The length of the line to be tested";
 
             Ox.Required = true;
             Oy.Required = true;
@@ -89,6 +93,7 @@ namespace IntersectionOfLineAndAABB
             Rx.Required = true;
             Ry.Required = true;
             Rz.Required = true;
+            Rlength.Required = true;
 
             B0x = schema.AddExpressionProperty("B0x", "0.0");
             B0y = schema.AddExpressionProperty("B0y", "0.0");
@@ -144,6 +149,11 @@ namespace IntersectionOfLineAndAABB
     class IntersectionStep : IStep
     {
         IPropertyReaders _properties;
+        double[] origin = new double[3];
+        double[] ray = new double[3];
+        double[] boxMin = new double[3];
+        double[] boxMax = new double[3];
+        
 
         public IntersectionStep(IPropertyReaders properties)
         {
@@ -157,6 +167,8 @@ namespace IntersectionOfLineAndAABB
         /// </summary>
         public ExitType Execute(IStepExecutionContext context)
         {
+            bool intersects = false;
+            
             // Example of how to get the value of a step property.
             IPropertyReader myExpressionProp = _properties.GetProperty("MyExpression") as IPropertyReader;
             string myExpressionPropStringValue = myExpressionProp.GetStringValue(context);
@@ -169,9 +181,53 @@ namespace IntersectionOfLineAndAABB
             // Example of how to display a trace line for the step.
             context.ExecutionInformation.TraceInformation(String.Format("The value of expression '{0}' is '{1}'.", myExpressionPropStringValue, myExpressionPropDoubleValue));
 
-            double 
+            origin[0] = _properties.GetProperty("Ox").GetDoubleValue(context);
+            origin[1] = _properties.GetProperty("Oy").GetDoubleValue(context);
+            origin[2] = _properties.GetProperty("Oz").GetDoubleValue(context);
 
+            ray[0] = _properties.GetProperty("Rx").GetDoubleValue(context);
+            ray[1] = _properties.GetProperty("Ry").GetDoubleValue(context);
+            ray[2] = _properties.GetProperty("Rz").GetDoubleValue(context);
 
+            boxMin[0] = _properties.GetProperty("B0x").GetDoubleValue(context);
+            boxMin[1] = _properties.GetProperty("B0y").GetDoubleValue(context);
+            boxMin[2] = _properties.GetProperty("B0z").GetDoubleValue(context);
+
+            boxMax[0] = _properties.GetProperty("B1x").GetDoubleValue(context);
+            boxMax[1] = _properties.GetProperty("B1y").GetDoubleValue(context);
+            boxMax[2] = _properties.GetProperty("B1z").GetDoubleValue(context);
+
+            double tmin = (boxMin[0] - origin[0]) / ray[0];
+            double tmax = (boxMax[0] - origin[0]) / ray[0]; 
+            if (tmin > tmax) Swap<double>(ref tmin, ref tmax);
+
+            double tymin = (boxMin[1] - origin[1]) / ray[1];
+            double tymax = (boxMax[1] - origin[1]) / ray[1];
+            if (tymin > tymax) Swap<double>(ref tymin, ref tymax);
+
+            if ((tmin > tymax) || (tymin > tmax))
+                return ExitType.AlternateExit;
+
+            if (tymin > tmin)
+                tmin = tymin;
+            if (tymax < tmax)
+                tmax = tymax;
+
+            double tzmin = (boxMin[2] - origin[2]) / ray[2];
+            double tzmax = (boxMax[2] - origin[2]) / ray[2];
+
+            if (tzmin > tzmax) Swap<double>(ref tzmin, ref tzmax);
+
+            if ((tmin > tzmax) || (tzmin>tmax))
+                return ExitType.AlternateExit;
+
+            if (tzmin > tmin)
+                tmin = tzmin;
+
+            if (tzmax < tmax)
+                tmax = tzmax;
+
+            
 
             if (intersects)
                 return ExitType.FirstExit;
@@ -181,6 +237,14 @@ namespace IntersectionOfLineAndAABB
             
         }
 
+        static void Swap<T>(ref T lhs, ref T rhs)
+        {
+            T temp;
+            temp = lhs;
+            lhs = rhs;
+            rhs = temp;
+        }
+        
         #endregion
     }
 }
